@@ -1,15 +1,13 @@
 import {
   boolean,
-  timestamp,
-  pgTable,
-  text,
-  primaryKey,
   integer,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
 import { type AdapterAccountType } from "next-auth/adapters";
-import { at } from "node_modules/@upstash/redis/zmscore-22fd48c7";
-import { use } from "react";
 
 export const users = pgTable("user", {
   id: text("id")
@@ -28,6 +26,7 @@ export const userAttributes = pgTable("user_attribute", {
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   userId: text("userId").references(() => users.id, { onDelete: "cascade" }),
+  clerkId: text("clerkId"),
   attribute: text("attribute").default("customer"),
 });
 

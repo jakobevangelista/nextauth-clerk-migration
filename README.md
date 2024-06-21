@@ -24,7 +24,7 @@ To ensure a smooth migration with minimal disruption to your users, we will foll
 
 ## Migration Steps
 
-### 1. Add Clerk Middleware (/src/app/middleware.ts)
+### 1. Add Clerk Middleware
 
 We need Clerk's middleware in order to use useSign in.
 
@@ -32,6 +32,8 @@ First, add the Clerk middleware alongside the existing NextAuth middleware. Cler
 
 
 ```js
+// src/app/middleware.ts
+
 import NextAuth from "next-auth";
 import authConfig from "@/auth.config";
 import { clerkMiddleware } from "@clerk/nextjs/server";
@@ -59,7 +61,7 @@ export const config = {
 
 <!-- need to implement code example with diffs graphic -->
 
-Update all data access patterns to use Clerk's auth() instead of NextAuth's auth().
+Update all data access patterns to use Clerk's auth() instead of NextAuth's auth(). While the migration is happening, we will use the external_id from clerk in order to retrieve data.
 
 ```diff
 - import { auth } from "@/auth";
@@ -79,9 +81,57 @@ or
 
 ```
 
-#### Here is an example
+#### Add clerkid attribute to tenet table
+
+Add add a clerkId attribute to your user_attributes table, this allows you to use both the next-auth id, which is stored in external_id in clerk, or clerk id during migration, and eventually transition to only using clerkid.
+
+```diff
+export const userAttributes = pgTable("user_attribute", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("userId").references(() => users.id, { onDelete"cascade" }),
++  clerkId: text("clerkId"),
+  attribute: text("attribute").default("customer"),
+});
+```
+
+### Custom session claims
+
+Our sessions allow for conditional expressions. This would allow you add a session claim that will return either the `externalId` (the previous id for your user) when it exists, or the `userId` from Clerk. This will result in your imported users returning their `externalId` while newer users will return the Clerk `userId`.
+
+In your Dashboard, go to Sessions -> Edit. Add the following: 
+
+```json
+{
+	"userId": "{{user.external_id || user.id}}"
+}
+```
+
+You can now access this value using the following:
+```ts 
+const { sessionClaims } = auth();
+console.log(sessionClaims.userId) 
+```
+
+You can add the following for typescript: 
+```js
+// types/global.d.ts
+
+export { };
+
+declare global {
+  interface CustomJwtSessionClaims {
+    userId?: string;
+  }
+}
+```
+
+#### Here is an example of accessing the tenet tables with the new patterns
 
 ```js
+// src/app/page.tsx
+
 import { db } from "@/server/neonDb";
 import { userAttributes, users } from "@/server/neonDb/schema";
 import { UserButton } from "@clerk/nextjs";
@@ -96,13 +146,18 @@ export default async function Home() {
     return redirect("/sign-in");
   }
 
-  const dbUser = await db.query.users.findFirst({
-    where: eq(users.email, user.emailAddresses[0]?.emailAddress!),
-  });
+  let userAttribute = null
 
-  const userAttribute = await db.query.userAttributes.findFirst({
+  // check if userId is either next auth id or clerkid
+  userAttribute = await db.query.userAttributes.findFirst({
     where: eq(userAttributes.userId, dbUser?.id!),
   });
+
+  if(userAttribute === null) {
+     userAttribute = await db.query.userAttributes.findFirst({
+       where: eq(userAttributes.clerkId, dbUser?.id!),
+     });
+  }
 
   return (
     <>
@@ -118,16 +173,19 @@ export default async function Home() {
 
 Use the following code to create users in Clerk and sign them in, this auto signs users in that were previously signed into nextauth allowing zero-downtime sign in:
 
-#### Server-Side (/src/app/_components/migrationComponent.tsx)
+#### Server-Side
 
-    Create a server-side function that checks if the current NextAuth user exists in Clerk. If not, create the user in Clerk, generate a sign-in token, and pass it to the frontend. This implementation uses Nextjs App router's server component, but you can do this traditionally by making this an api endpoint that you call from the frontend.
+Create a server-side function that checks if the current NextAuth user exists in Clerk. If not, create the user in Clerk, generate a sign-in token, and pass it to the frontend. This implementation uses Nextjs App router's server component, but you can do this traditionally by making this an api endpoint that you call from the frontend.
 
-    We are using the "external_id" attribute within the createUser function. This allows users to have a tenet table to store all user attributes outside of clerk in their own user table.
+We are using the "external_id" attribute within the createUser function. This allows users to have a tenet table to store all user attributes outside of clerk in their own user table.
 
-    We query the tenet table and pass the data to the children as an example of how to use the external_id function.
+We query the tenet table and pass the data to the children as an example of how to use the external_id function.
+
+Along with creating the user in clerk, we also want to update the user attribute table associated with the migrated user.
 
 
 ```js
+// src/app/_components/migrationComponent.tsx
 import { auth } from "@/auth";
 import { db } from "@/server/neonDb";
 import { users } from "@/server/neonDb/schema";
@@ -173,6 +231,11 @@ export default async function MigrationLayout({
 
   if (!createdUser) return <div>Failed to create user</div>;
 
+  // updates the user's attribute table entry with their clerk id
+  await db.update(userAttributes).set({
+    clerkId: createdUser.id
+  }).where(eq(userAttributes.userId, createdUser.externalId));
+
   // creates sign in token for user
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const signInToken: { token: string } = await fetch(
@@ -204,7 +267,7 @@ export default async function MigrationLayout({
 
 ```
 
-#### Client Side Component (/src/app/_components/clientClerkComponent.tsx)
+#### Client Side Component
 
 On the frontend, use the token to sign the user into Clerk seamlessly.
 
@@ -212,6 +275,8 @@ We also display the information retrieved from the tenet table.
 
 
 ```js
+// src/app/_components/clientClerkComponent.tsx
+
 "use client";
 
 import { useSignIn, useUser } from "@clerk/nextjs";
@@ -275,11 +340,12 @@ export default function ClientClerkComponent({
 }
 ```
 
-### 4. Wrap Application in <ClerkProvider> and <MigrationLayout> (/src/app/layout.tsx)
+### 4. Wrap Application in &lt;ClerkProvider> and &lt;MigrationLayout>
 
-Wrap your application layout in the <ClerkProvider> component to enable Clerk authentication. Also wrap the <MigrationLayout> component, this allows users that are already signed into next-auth to seamlessly sign into clerk.
+Wrap your application layout in the &lt;ClerkProvider> component to enable Clerk authentication. Also wrap the &lt;MigrationLayout> component, this allows users that are already signed into next-auth to seamlessly sign into clerk.
 
 ```js
+// src/app/layout.tsx
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -314,13 +380,16 @@ export default function RootLayout({
 
 The batch import handles the migration of inactive users through a scheduled process, ensuring all users are migrated without overwhelming the system.
 
-#### Script to get all users in existing database within a queue (/src/app/batch/page.tsx)
+#### Script to get all users in existing database within a queue
 
 Store all users in a queue for batch processing. This can be done using a standalone nodejs script. The implementation uses nextjs app router's server components. 
 
 The process is just iterating through all the users, storing them in a queue for the cron job to process individually. Definitely scaling concerns but you can modify this solution to fit your scale.
 
+As with the trickle migration, along with creating the user in clerk, we also want to update the user attribute table associated with the migrated user.
+
 ```js
+// src/app/batch/page.tsx
 import { db } from "@/server/db";
 import { Redis } from "@upstash/redis";
 
@@ -351,11 +420,13 @@ export default function Batch() {
 }
 ```
 
-#### Backend API for Batch Import to import users into Clerk (/src/app/api/batch)
+#### Backend API for Batch Import to import users into Clerk
 
 Use a cron job to process the queue and create users in Clerk, respecting rate limits. Using Upstash for the cron job running but you can use any job runner of your choice. Again, does not have to be in nextjs, can be any express-like backend. 
 
 ```js
+// src/app/api/batch/route.ts
+
 import { clerkClient } from "@clerk/nextjs/server";
 import { Receiver } from "@upstash/qstash";
 import { Redis } from "@upstash/redis";
@@ -402,25 +473,32 @@ export async function POST() {
     if (searchUser.data.length > 0) {
       continue;
     } else {
-      await clerkClient.users.createUser({
+      const createdUser = await clerkClient.users.createUser({
         emailAddress: [email],
         password: password === "null" ? undefined : password!,
         externalId: id!,
         skipPasswordRequirement: true,
         skipPasswordChecks: true,
       });
+
+      // updates the user's attribute table entry with their clerk id
+      await db.update(userAttributes).set({
+      clerkId: createdUser.id
+      }).where(eq(userAttributes.userId, createdUser.externalId));
     }
   }
   console.log("BATCH IMPORTING WORKS");
   return new Response("OK", { status: 200 });
 }
 ```
-### 6. Handling users that need to sign in during migration (/src/app/sign-in/[[...sign-in]]/page.tsx) and (/src/app/api/trickle2/route.ts)
+### 6. Handling users that need to sign in during migration
 
 There is a case where registered users need to sign in during the migration and they haven't have yet been added to clerk through the batch import. To solve this, we have a script is added to the sign in page in order to add those users into clerk as well as sign them in with their already existing information. It calls to an api point in /api/trickle2 that facilitates the inserting of the user to clerk.
 
-#### Here is the script that runs on sign in (/src/app/sign-in/[[...sign-in]]/page.tsx):
+#### Here is the script that runs on sign in:
 ```js
+// src/app/sign-in/[[...sign-in]]/page.tsx
+
 "use client";
 import { redirect } from "next/navigation";
 import { auth as clerkAuthFunction } from "@clerk/nextjs/server";
@@ -475,8 +553,10 @@ export default function SignInComponent() {
   return redirect("/");
 }
 ```
-#### This is the api point that the script calls (/src/app/api/trickle2/route.ts) 
+#### This is the api point that the script calls
 ```js
+// src/app/api/trickle2/route.ts
+
 import { db } from "@/server/neonDb";
 import { users } from "@/server/neonDb/schema";
 import { clerkClient } from "@clerk/nextjs/server";
@@ -496,12 +576,16 @@ export const POST = async (req: NextRequest, res: NextResponse) => {
     return Response.json({ error: "not exist" });
   }
 
-  await clerkClient.users.createUser({
+  const createdUser = await clerkClient.users.createUser({
     emailAddress: [onlyEmail],
     password: user.password ?? undefined,
     skipPasswordChecks: true,
     externalId: `${user.id}`,
   });
+
+  await db.update(userAttributes).set({
+      clerkId: createdUser.id
+      }).where(eq(userAttributes.userId, createdUser.externalId));
 
   return Response.json({ succes: "user exists" });
 };
@@ -510,9 +594,10 @@ export const POST = async (req: NextRequest, res: NextResponse) => {
 
 ### 7. Sign Ups go through the clerk component
 
-New user sign ups go through the clerk components, nothing too special here.
+New user sign ups go through the clerk components
 
 ```js
+// src/app/sign-up/[[...sign-up]]/page.tsx
 import { SignUp } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 
@@ -531,10 +616,28 @@ export default async function SignUpComponent() {
   return redirect("/");
 }
 ```
+### 8. (Optional) Setup API point to sync data with next auth
 
-## How migrations flow works
+If you setup a webhook through the clerk dashboard and configure it to send events on user.created, this will allow you to setup an endpoint that allows you to sync the signed up users in clerk to your existing nextauth backend in case of rollback.
+
+Here is a rough overview of how it would look
+
+```js
+// need to put file path here
+export default const POST(req: Request) => {
+  const body = req.json();
+
+  await db.insert(users).values({
+    email: body.emailAddresses[0].emailAddress,
+    name: body.first_name + body.last_name,
+  })
+}
+```
+
+## Overview of migration flow
 <!-- I am unsure how much we should hand hold the migrator -->
-1. Migrate all auth helper functions to use clerk's auth function ie clerk's auth() and/or currentUser().
+
+1. Migrate all auth helper functions to use clerk's auth function ie clerk's auth() and/or currentUser() and/or sessionClaims.userId
 2. Batch import and trickle migration
     - While this is going on, users will sign in through clerk. The sign in component has a special effect that runs that adds the user to clerk if they haven't already migrated during the batch import.
 3. New users sign up with clerk components
