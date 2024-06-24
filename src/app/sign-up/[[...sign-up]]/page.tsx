@@ -1,4 +1,4 @@
-import { auth, signIn, signOut } from "@/auth";
+import { auth } from "@/auth";
 import { db } from "@/server/neonDb";
 import { users } from "@/server/neonDb/schema";
 

@@ -1,4 +1,4 @@
-import { auth, signIn, signOut } from "@/auth";
+import { auth, signIn } from "@/auth";
 
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
@@ -17,6 +17,7 @@ export default async function SignIn() {
                 password: formData.get("password"),
                 redirectTo: "/",
               });
+
               console.log("Signed In");
             } catch (error) {
               console.log("ERROR");
