@@ -343,6 +343,8 @@ Store all users in a queue for batch processing. This can be done using a standa
 
 The process is just iterating through all the users, storing them in a queue for the cron job to process individually. Definitely scaling concerns but you can modify this solution to fit your scale.
 
+If you are using oauth, you don't have to store a password.
+
 ```js
 // src/app/batch/page.tsx
 import { db } from "@/server/neonDb";
