@@ -155,7 +155,6 @@ export async function POST() {
   });
 
   let createdUser: User | null | undefined = null;
-  console.log("CREATING USER");
   if (searchUser.data.length > 0) {
     createdUser = searchUser.data[0];
   } else {
@@ -197,7 +196,6 @@ export async function POST() {
 
   if (!signInToken.token) throw new Error("Sign in token not created");
 
-  console.log("WERE SUPPOSED TO BE HERE ON INITIAL SIGN UP");
   return new Response(JSON.stringify({ token: signInToken.token }), {
     status: 201,
     headers: {
@@ -366,7 +364,6 @@ export default function Batch() {
       await redis.rpush("email", user.email);
       await redis.rpush("password", user.password ?? "null");
       await redis.rpush("id", user.id);
-      console.log("IMPORTED: ", user.email);
     }
   }
   return (
@@ -448,7 +445,6 @@ export async function POST() {
       });
     }
   }
-  console.log("BATCH IMPORTING WORKS");
   return new Response("OK", { status: 200 });
 }
 
@@ -522,7 +518,6 @@ import { auth as ogAuth } from "@clerk/nextjs/server";
 export function auth() {
   const ogAuthRes = ogAuth();
   ogAuthRes.userId = ogAuthRes.sessionClaims!.userId! as string;
-  console.log("NEW AUTH FUNCTION SET: ", ogAuthRes.userId);
   return ogAuthRes;
 }
 
