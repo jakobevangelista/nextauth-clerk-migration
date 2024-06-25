@@ -332,9 +332,9 @@ export default function TestRQComponent({
 ```
 
 #### React 19+
-You might notice we are using a useRef in order to prevent a second effect ran in strictmode, a common thing react does. (Insert strictmode docs here). The only reason this ever worked is because "refs not getting in strict mode" was a known bug since 2022, and it is getting fixed in React 19.
+You might notice we are using a useRef in order to prevent a second effect ran in strictmode, a common thing react does. (Insert strictmode docs here). The only reason this ever worked is because "refs not mounted/un-mounted in strict mode" was a known bug since 2022, and it is getting fixed in React 19.
 
-I'm going to have a branch with React a TanStack Query Implementation. No need for scary useeffects 😅
+I'm going to have a branch with React a TanStack Query Implementation. No need for scary useeffects 😅l
 
 ### 5. Batch Import
 
