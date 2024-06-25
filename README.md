@@ -359,8 +359,10 @@ export default function Batch() {
     const users = await db.query.users.findMany();
 
     for (const user of users) {
+      // this example just uses the minimum recommended information
+      // feel free to add all the fields you need
       await redis.rpush("email", user.email);
-      await redis.rpush("password", user.password ?? "null");
+      await redis.rpush("password", user.password ?? "null"); // "null" might be cursed 
       await redis.rpush("id", user.id);
     }
   }
@@ -430,15 +432,18 @@ export async function POST() {
   const lengthOfLoop = lengthOfQueue > 20 ? 20 : lengthOfQueue;
 
   for (let i = 0; i < lengthOfLoop; i++) {
+    // pop off all the information we want
     const email = await redis.lpop<string | null>("email");
     const password = await redis.lpop<string | null>("password");
     const id = await redis.lpop<string>("id");
     if (!email) break;
 
+    // check if user already exists
     const searchUser = await clerkClient.users.getUserList({
       emailAddress: [email],
     });
 
+    // create user if they dont exist
     if (searchUser.data.length > 0) {
       continue;
     } else {
