@@ -15,14 +15,13 @@ Before you begin, ensure you have the following:
 ## Migration Overview
 
 To ensure a smooth migration with minimal disruption to your users, we will follow these steps:
-1. **Install @clerk/nextjs**
-2. **Add Clerk Middleware**
-3. **Add Clerk provider**
-4. **Implement Trickle Migration**
-5. **Implement batch migration**
-6. **Switch Data Access Patterns to Clerk**
-7. **Implement Sign-up and Sign-in with Clerk**
-8. **Turn off all next-auth things and switch to clerk**
+1. [**Install @clerk/nextjs**](#1-install-clerknextjs)
+2. [**Add Clerk Middleware**](#2-add-clerk-middleware)
+3. [**Add Clerk provider**](#3-wrap-application-in-clerkprovider-and-migrationlayout-and-queryclient)
+4. [**Implement Trickle Migration**](#4-trickle-migration)
+5. [**Implement batch migration**](#5-batch-import)
+6. [**Switch Data Access Patterns to Clerk**](#6-migrate-data-access-patterns-srcapppagetsx)
+7. [**Implement Sign-up and Sign-in with Clerk**](#7-sign-ups-and-sign-ins-go-through-the-clerk-components)
 
 During migration, there are going to be 2 major states for your app, we label them as "during the migration" and "after the migration".
 
@@ -78,9 +77,9 @@ export const config = {
 };
 ```
 
-### 3. Wrap Application in &lt;ClerkProvider> and &lt;MigrationLayout> and &lt;QueryClient>
+### 3. Wrap Application in &lt;ClerkProvider>
 
-Wrap your application layout in the &lt;ClerkProvider> component to enable Clerk authentication. Also wrap the &lt;MigrationLayout> component, this allows users that are already signed into next-auth to seamlessly sign into clerk.
+Wrap your application layout in the &lt;ClerkProvider> component to enable Clerk authentication. 
 
 ```js #2,#20,#26
 // src/app/layout.tsx
@@ -122,7 +121,7 @@ To seamlessly transition your users from NextAuth to Clerk without any downtime,
 
 Create a server-side function that checks if the current NextAuth user exists in Clerk. If not, create the user in Clerk, generate a sign-in token, and pass it to the frontend.
 
-We are using the "external_id" attribute within the createUser function. This allows users to have a tenet table to store all user attributes outside of clerk in their own user table.
+We are using the "external_id" attribute within the createUser function. This allows users to have a tenet table to store all user attributes outside of Clerk in their own user table.
 
 If you would like to use the user metadata section in Clerk's user object, we have a guide down below in the "Data Access" patterns sections in order to do this.
 
@@ -156,7 +155,6 @@ export async function POST() {
   });
 
   let createdUser: User | null | undefined = null;
-  console.log("CREATING USER");
   if (searchUser.data.length > 0) {
     createdUser = searchUser.data[0];
   } else {
@@ -178,7 +176,6 @@ export async function POST() {
   if (!createdUser) throw new Error("User not created");
 
   // creates sign in token for user
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const signInToken: { token: string } = await fetch(
     "https://api.clerk.com/v1/sign_in_tokens",
     {
@@ -192,13 +189,11 @@ export async function POST() {
       }),
     }
   ).then(async (res) => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return await res.json();
   });
 
   if (!signInToken.token) throw new Error("Sign in token not created");
 
-  console.log("WERE SUPPOSED TO BE HERE ON INITIAL SIGN UP");
   return new Response(JSON.stringify({ token: signInToken.token }), {
     status: 201,
     headers: {
@@ -211,9 +206,11 @@ export async function POST() {
 
 #### Client Side Component
 
-Ok, I know this seems scary but let me talk you through it. Here we call the backend api we just wrote to create the user in clerk and fetch the sign in token.
+This is a wrapper around your application wrapped in template.js.
 
-In the fetch useEffect, we are using a package calle p-retry, all this package does is implement exponential backoff when the fetch function fails. This is to solve the thundering herd of 10,000 current active users using your app with our createUser ratelimit of 20req/10sec.
+Ok, I know this seems scary but let me talk you through it. Here we call the backend api we just wrote to create the user in Clerk and fetch the sign in token.
+
+In the fetch useEffect, we are using a package called p-retry, all this package does is implement exponential backoff when the fetch function fails. This is to solve the thundering herd of 10,000 current active users using your app with our createUser ratelimit of 20req/10sec.
 
 The second useEffect takes the token, and signs the user in. We do this by extracting signIn and setActive from useSignIn().
 
@@ -332,7 +329,24 @@ export default function TestRQComponent({
 ```
 
 #### React 19+
-You might notice we are using a useRef in order to prevent a second effect ran in strictmode, a common thing react does. (Insert strictmode docs here). The only reason this ever worked is because "refs not getting in strict mode" was a known bug since 2022, and it is getting fixed in React 19.
+You might notice we are using a useRef in order to prevent a second effect ran in strictmode, a common thing react does. You can find more information [here](https://github.com/facebook/react/issues/24670), [here](https://github.com/reactjs/react.dev/issues/6123), and [here](https://github.com/reactjs/react.dev/pull/6777). The only reason this ever worked is because "refs not mounted/un-mounted in strict mode" was a known bug since 2022, and it is getting fixed in React 19.
+
+I'm going to have a branch with React a TanStack Query Implementation. No need for scary useEffects 😅
+
+#### Wrapper
+
+We use a template.js, this acts similarly to layouts where it 'wraps each child layout or page. Unlike layouts that persist across routes and maintain state, templates create a new instance for each of their children on navigation.'
+
+You can find more information in the nextjs docs [here](https://nextjs.org/docs/app/api-reference/file-conventions/template).
+
+```js
+// src/app/template.tsx
+import TrickleWrapper from "./trickleWrapper";
+
+export default function Tempalate({ children }: { children: React.ReactNode }) {
+  return <TrickleWrapper>{children}</TrickleWrapper>;
+}
+```
 
 ### 5. Batch Import
 
@@ -342,9 +356,11 @@ You should start the batch after the thundering herd is done thundering aka the 
 
 #### Script to get all users in existing database within a queue
 
-Store all users in a queue for batch processing. This can be done using a standalone nodejs script. The implementation uses nextjs app router's server components. 
+Store all users in a queue for batch processing. This can be done using a standalone nodejs script. The implementation uses nextjs app router's server components and Upstash for the queue.
 
 The process is just iterating through all the users, storing them in a queue for the cron job to process individually. Definitely scaling concerns but you can modify this solution to fit your scale.
+
+If you are using oauth, you don't have to store a password.
 
 ```js
 // src/app/batch/page.tsx
@@ -362,10 +378,11 @@ export default function Batch() {
     const users = await db.query.users.findMany();
 
     for (const user of users) {
+      // this example just uses the minimum recommended information
+      // feel free to add all the fields you need
       await redis.rpush("email", user.email);
-      await redis.rpush("password", user.password ?? "null");
+      await redis.rpush("password", user.password ?? "null"); // "null" might be cursed 
       await redis.rpush("id", user.id);
-      console.log("IMPORTED: ", user.email);
     }
   }
   return (
@@ -423,18 +440,29 @@ export async function POST() {
     return new Response("Invalid signature", { status: 401 });
   }
 
+  // --- everything above this line is queue specific code to
+  // authenticate the queue api ---
+
   const lengthOfQueue = await redis.llen("key");
+
+  // you can modify how many requests you want your queue to pop here,
+  // this is using the max, 20 requests, but you can tone it donwn to
+  // work with the trickle if your trickle is going at the same time
   const lengthOfLoop = lengthOfQueue > 20 ? 20 : lengthOfQueue;
+
   for (let i = 0; i < lengthOfLoop; i++) {
+    // pop off all the information we want
     const email = await redis.lpop<string | null>("email");
     const password = await redis.lpop<string | null>("password");
     const id = await redis.lpop<string>("id");
     if (!email) break;
 
+    // check if user already exists
     const searchUser = await clerkClient.users.getUserList({
       emailAddress: [email],
     });
 
+    // create user if they dont exist
     if (searchUser.data.length > 0) {
       continue;
     } else {
@@ -447,7 +475,6 @@ export async function POST() {
       });
     }
   }
-  console.log("BATCH IMPORTING WORKS");
   return new Response("OK", { status: 200 });
 }
 
@@ -455,7 +482,7 @@ export async function POST() {
 
 ### 6. Migrate Data Access Patterns (/src/app/page.tsx)
 
-Update all data access patterns to use Clerk's auth() instead of NextAuth's auth(). While the migration is happening, we will use the external_id (or use the patched auth helper) from clerk in order to retrieve data.
+Update all data access patterns to use Clerk's auth() instead of NextAuth's auth(). While the migration is happening, we will use the external_id (or use the patched auth helper) from Clerk in order to retrieve data.
 
 ```diff
 - import { auth } from "@/auth";
@@ -506,9 +533,9 @@ declare global {
 }
 ```
 
-**Side note, we're currently patching the clerk createUser function so that you can just set the userid as externalid instead of having to set external id, here's a patch to set the userid to externalId, once you can set userid on createUser, we can delete this and just reference userId**
+**Side note, we're currently patching the Clerk auth() function so that you can just set the userid as externalid instead of having to set external id, here's a patch to set the userid to externalId, once you can set userid on createUser, we can delete this and just reference userId**
 
-We do this so that if 
+We do this so that if the migrator chooses to store their user metadata in their own table, they can reference the information with just 1 key.
 
 ```ts
 // src/app/authPatch.ts
@@ -521,7 +548,6 @@ import { auth as ogAuth } from "@clerk/nextjs/server";
 export function auth() {
   const ogAuthRes = ogAuth();
   ogAuthRes.userId = ogAuthRes.sessionClaims!.userId! as string;
-  console.log("NEW AUTH FUNCTION SET: ", ogAuthRes.userId);
   return ogAuthRes;
 }
 
@@ -570,7 +596,7 @@ export default async function Home() {
 
 ```
 
-#### We want users to edit their profile (attribute that are not classified as user metadata) in nextauth when they haven't been added to clerk yet, but if they are in clerk, we want them to edit profile information in clerk, this allows them to change profile information during the migration process
+#### We want users to edit their profile (attribute that are not classified as user metadata) in nextauth when they haven't been added to Clerk yet, but if they are in Clerk, we want them to edit profile information in Clerk, this allows them to change profile information during the migration process
 
 ```js
 // src/app/changePassword/page.tsx
@@ -583,8 +609,8 @@ import { auth } from "@clerk/nextjs/server";
 import { UserButton } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 
-// checks if user is in clerk, if in clerk, change password in clerk (semantic user button)
-// if not in clerk, change password in nextauth
+// checks if user is in Clerk, if in Clerk, change password in Clerk (semantic user button)
+// if not in Clerk, change password in nextauth
 export default async function Home() {
   const { userId }: { userId: string | null } = auth();
   const nexAuthUser = await nextAuthFunction();
@@ -593,7 +619,7 @@ export default async function Home() {
     return redirect("/sign-in");
   }
 
-  // if the user hasn't been migrated to clerk, change the password in nextauth
+  // if the user hasn't been migrated to Clerk, change the password in nextauth
   if (userId === null) {
     return (
       <>
@@ -612,7 +638,7 @@ export default async function Home() {
     );
   }
 
-  // semantic representation of changing user profile in clerk
+  // semantic representation of changing user profile in Clerk
   return (
     <>
       <UserButton />
@@ -621,9 +647,9 @@ export default async function Home() {
 }
 ```
 
-#### Here is an example of accessing the user metadata through clerk's metadata
+#### Here is an example of accessing the user metadata through Clerk's metadata
 
-If you would like to store user metadata within Clerk's User object. Here is how you do it.
+If you would like to store user metadata within Clerk's User object, here is how you do it.
 
 ```js
 // wherever you call createUser
@@ -632,7 +658,7 @@ await clerkClient.users.createUser({
   firstName: "Test",
   lastName: "User",
   emailAddress: [ "testclerk123@gmail.com" ],
-  password: "password"
+  password: "password",
   public_metadata: {role: "Engineer"},
   private_metadata: {skillIssue: "can't center div"},
   unsafe_metadata: {status: "happy"}
@@ -655,11 +681,11 @@ export default async function Page() {
 
 ## After the migration ('after-migration' branch)
 
-Once all users are batched into clerk, we can switch the signups and sign ins to clerk! Since we signed in those who are already using the app, it will be a seamless switch!
+Once all users are batched into Clerk, we can switch the signups and sign ins to Clerk! Since we signed in those who are already using the app, it will be a seamless switch!
 
-### 7. Sign-Ups and Sign-Ins go through the clerk components
+### 7. Sign-Ups and Sign-Ins go through the Clerk components
 
-New user sign ups go through the clerk components.
+New user sign ups go through the Clerk components.
 
 ```js
 // src/app/sign-up/[[...sign-up]]/page.tsx
@@ -703,25 +729,25 @@ export default function SignInComponent() {
 
 ## Overview of migration flow
 
-1. Add clerk middleware
-2. Add <clerkProvider>
-3. Trickle - allows users that are signed into next auth to be signed into clerk, we want this because when we flip the switch to using clerk, we don’t want the users to feel any change
+1. Add Clerk middleware
+2. Add <ClerkProvider>
+3. Trickle - allows users that are signed into next auth to be signed into Clerk, we want this because when we flip the switch to using Clerk, we don’t want the users to feel any change
     1. During the trickle, everybody still signs up and signs in through next auth, this prevents 
     2. Trickle, on client and wraps application, hits an endpoint, queries next auth information and then creates user, query can fail  which is suspended and returns children and has exponential backoff built in, this solves thundering heard
-        1. If a user wants to change something in “user profiles” ie change profile / change password, on /changePasswords, the page checks if they are already in clerk
-            1. If in clerk, change profile in clerk
+        1. If a user wants to change something in “user profiles” ie change profile / change password, on /changePasswords, the page checks if they are already in Clerk
+            1. If in Clerk, change profile in Clerk
             2. If not, change profile in next auth (once trickle hits, this allows them to have their profile information accurate and transferred
     3. Once query is successful, the sign in token is created and passed back to client, and on the client, the user is signed in
-4. Batch import - this is for mass importing users from your entire users table to clerk, also does not have to start at the same time as the trickle to save bandwidth, we can wait for the thundering herd to be done and then start batch
+4. Batch import - this is for mass importing users from your entire users table to Clerk, also does not have to start at the same time as the trickle to save bandwidth, we can wait for the thundering herd to be done and then start batch
     1. Put your entire user table into a queue
-    2. A cron job calls /api/batch every 10 seconds which pops off 20 items of the queue, checks if they exist in clerk
-        1. If not in clerk, Create user
-        2. If in clerk, ignore’
-5. Migrate all auth helper functions to use clerk’s auth helpers instead of next auth helpers
+    2. A cron job calls /api/batch every 10 seconds which pops off 20 items of the queue, checks if they exist in Clerk
+        1. If not in Clerk, Create user
+        2. If in Clerk, ignore’
+5. Migrate all auth helper functions to use Clerk’s auth helpers instead of next auth helpers
 
 ——— this line separates “migrating / after migration" branches, below this line happens after batch importing and trickle are done ———
 
-1. Switch to clerk components
+1. Switch to Clerk components
 2. Remove trickle and batch code
 
 ## Wrapping Up
