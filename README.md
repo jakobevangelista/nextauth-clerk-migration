@@ -516,9 +516,9 @@ declare global {
 }
 ```
 
-**Side note, we're currently patching the clerk createUser function so that you can just set the userid as externalid instead of having to set external id, here's a patch to set the userid to externalId, once you can set userid on createUser, we can delete this and just reference userId**
+**Side note, we're currently patching the clerk auth() function so that you can just set the userid as externalid instead of having to set external id, here's a patch to set the userid to externalId, once you can set userid on createUser, we can delete this and just reference userId**
 
-We do this so that if 
+We do this so that if the migrator chooses to store their user metadata in their own table, they can reference the information with just 1 key.
 
 ```ts
 // src/app/authPatch.ts
