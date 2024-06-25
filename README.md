@@ -15,14 +15,13 @@ Before you begin, ensure you have the following:
 ## Migration Overview
 
 To ensure a smooth migration with minimal disruption to your users, we will follow these steps:
-1. **Install @clerk/nextjs**
-2. **Add Clerk Middleware**
-3. **Add Clerk provider**
-4. **Implement Trickle Migration**
-5. **Implement batch migration**
-6. **Switch Data Access Patterns to Clerk**
-7. **Implement Sign-up and Sign-in with Clerk**
-8. **Turn off all next-auth things and switch to clerk**
+1. [**Install @clerk/nextjs**](#1-install-clerknextjs)
+2. [**Add Clerk Middleware**](#2-add-clerk-middleware)
+3. [**Add Clerk provider**](#3-wrap-application-in-clerkprovider-and-migrationlayout-and-queryclient)
+4. [**Implement Trickle Migration**](#4-trickle-migration)
+5. [**Implement batch migration**](#5-batch-import)
+6. [**Switch Data Access Patterns to Clerk**](#6-migrate-data-access-patterns-srcapppagetsx)
+7. [**Implement Sign-up and Sign-in with Clerk**](#7-sign-ups-and-sign-ins-go-through-the-clerk-components)
 
 During migration, there are going to be 2 major states for your app, we label them as "during the migration" and "after the migration".
 
