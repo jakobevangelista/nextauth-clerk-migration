@@ -77,9 +77,9 @@ export const config = {
 };
 ```
 
-### 3. Wrap Application in &lt;ClerkProvider> and &lt;MigrationLayout> and &lt;QueryClient>
+### 3. Wrap Application in &lt;ClerkProvider>
 
-Wrap your application layout in the &lt;ClerkProvider> component to enable Clerk authentication. Also wrap the &lt;MigrationLayout> component, this allows users that are already signed into next-auth to seamlessly sign into Clerk.
+Wrap your application layout in the &lt;ClerkProvider> component to enable Clerk authentication. 
 
 ```js #2,#20,#26
 // src/app/layout.tsx
@@ -206,6 +206,8 @@ export async function POST() {
 
 #### Client Side Component
 
+This is a wrapper around your application wrapped in template.js.
+
 Ok, I know this seems scary but let me talk you through it. Here we call the backend api we just wrote to create the user in Clerk and fetch the sign in token.
 
 In the fetch useEffect, we are using a package called p-retry, all this package does is implement exponential backoff when the fetch function fails. This is to solve the thundering herd of 10,000 current active users using your app with our createUser ratelimit of 20req/10sec.
@@ -330,6 +332,21 @@ export default function TestRQComponent({
 You might notice we are using a useRef in order to prevent a second effect ran in strictmode, a common thing react does. You can find more information [here](https://github.com/facebook/react/issues/24670), [here](https://github.com/reactjs/react.dev/issues/6123), and [here](https://github.com/reactjs/react.dev/pull/6777). The only reason this ever worked is because "refs not mounted/un-mounted in strict mode" was a known bug since 2022, and it is getting fixed in React 19.
 
 I'm going to have a branch with React a TanStack Query Implementation. No need for scary useEffects 😅
+
+#### Wrapper
+
+We use a template.js, this acts similarly to layouts where it 'wraps each child layout or page. Unlike layouts that persist across routes and maintain state, templates create a new instance for each of their children on navigation.'
+
+You can find more information in the nextjs docs [here](https://nextjs.org/docs/app/api-reference/file-conventions/template).
+
+```js
+// src/app/template.tsx
+import TrickleWrapper from "./trickleWrapper";
+
+export default function Tempalate({ children }: { children: React.ReactNode }) {
+  return <TrickleWrapper>{children}</TrickleWrapper>;
+}
+```
 
 ### 5. Batch Import
 
