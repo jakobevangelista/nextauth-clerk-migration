@@ -25,6 +25,20 @@ export async function POST() {
   if (searchUser.data.length > 0) {
     createdUser = searchUser.data[0];
   } else {
+    // if (Math.random() > 0.5) {
+    //   for (let i = 0; i < 30; i++) {
+    //     try {
+    //       await clerkClient.users.createUser({
+    //         emailAddress: [`${Math.random()}@gmail.com`],
+    //         skipPasswordRequirement: true,
+    //         skipPasswordChecks: true,
+    //       });
+    //     } catch (e) {
+    //       throw new Error("User not created");
+    //     }
+    //     console.log("User created");
+    //   }
+    // }
     const user = await db.query.users.findFirst({
       where: eq(users.email, session.user.email),
     });

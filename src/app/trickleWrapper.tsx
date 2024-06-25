@@ -51,6 +51,12 @@ export default function TrickleWrapper({
       if (signInToken !== null || signInId !== null) return;
 
       const myFetch = async () => {
+        await fetch("/api/hitTheLimit", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
         const res = await pRetry(
           async () => {
             const res = await fetch("/api/signInToken", {
@@ -58,8 +64,11 @@ export default function TrickleWrapper({
               headers: {
                 "Content-Type": "application/json",
               },
-              cache: "force-cache",
             });
+
+            if (!res.ok) {
+              throw new Error(res.statusText);
+            }
             return res;
           },
           {
