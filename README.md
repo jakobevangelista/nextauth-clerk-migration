@@ -419,8 +419,13 @@ export async function POST() {
     return new Response("Invalid signature", { status: 401 });
   }
 
+  // --- everything above this line is queue specific code to authenticate the queue api ---
+
   const lengthOfQueue = await redis.llen("key");
+
+  // you can modify how many requests you want your queue to pop here, this is using the max, 20 requests, but you can tone it donwn to work with the trickle if your trickle is going at the same time
   const lengthOfLoop = lengthOfQueue > 20 ? 20 : lengthOfQueue;
+
   for (let i = 0; i < lengthOfLoop; i++) {
     const email = await redis.lpop<string | null>("email");
     const password = await redis.lpop<string | null>("password");
