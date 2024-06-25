@@ -28,6 +28,9 @@ During migration, there are going to be 2 major states for your app, we label th
 ## Migration Steps
 
 ## During the migration ('migrating' Branch)
+
+During this part of the migratiion, users will sign in and sign up through nextauth.
+
 ### 1. Install @clerk/nextjs
 
 (I dont know how to do the cool tabbed thing to install in npm, yarn, pnpm, bun but once I learn how to do it, imma do it)
