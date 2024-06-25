@@ -176,7 +176,6 @@ export async function POST() {
   if (!createdUser) throw new Error("User not created");
 
   // creates sign in token for user
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const signInToken: { token: string } = await fetch(
     "https://api.clerk.com/v1/sign_in_tokens",
     {
@@ -190,7 +189,6 @@ export async function POST() {
       }),
     }
   ).then(async (res) => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return await res.json();
   });
 
