@@ -327,7 +327,7 @@ export default function TestRQComponent({
 ```
 
 #### React 19+
-You might notice we are using a useRef in order to prevent a second effect ran in strictmode, a common thing react does. You can find more information [here](Bug: React 18 Strict mode does not simulate unsetting and re-setting DOM refs #24670), [here](https://github.com/reactjs/react.dev/issues/6123), and [here](https://github.com/reactjs/react.dev/pull/6777). The only reason this ever worked is because "refs not mounted/un-mounted in strict mode" was a known bug since 2022, and it is getting fixed in React 19.
+You might notice we are using a useRef in order to prevent a second effect ran in strictmode, a common thing react does. You can find more information [here](https://github.com/facebook/react/issues/24670), [here](https://github.com/reactjs/react.dev/issues/6123), and [here](https://github.com/reactjs/react.dev/pull/6777). The only reason this ever worked is because "refs not mounted/un-mounted in strict mode" was a known bug since 2022, and it is getting fixed in React 19.
 
 I'm going to have a branch with React a TanStack Query Implementation. No need for scary useEffects 😅
 
