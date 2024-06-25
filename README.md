@@ -641,7 +641,7 @@ await clerkClient.users.createUser({
   firstName: "Test",
   lastName: "User",
   emailAddress: [ "testclerk123@gmail.com" ],
-  password: "password"
+  password: "password",
   public_metadata: {role: "Engineer"},
   private_metadata: {skillIssue: "can't center div"},
   unsafe_metadata: {status: "happy"}
