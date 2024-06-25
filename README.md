@@ -751,4 +751,4 @@ export default function SignInComponent() {
 2. Remove trickle and batch code
 
 ## Wrapping Up
-With your users now imported into Clerk and your application updated, you can fully switch to using Clerk for authentication. This guide provides a comprehensive approach to migrating from Next-Auth to Clerk with minimal disruption to
+With your users now imported into Clerk and your application updated, you can fully switch to using Clerk for authentication. This guide provides a comprehensive approach to migrating from Next-Auth to Clerk!
