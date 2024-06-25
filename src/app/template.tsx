@@ -1,5 +1,5 @@
-import TrickleWrapper from "./trickleWrapper";
+import MigrationLayout from "./_wrappers/serverWrapper";
 
 export default function Tempalate({ children }: { children: React.ReactNode }) {
-  return <TrickleWrapper>{children}</TrickleWrapper>;
+  return <MigrationLayout>{children}</MigrationLayout>;
 }

@@ -121,6 +121,8 @@ To seamlessly transition your users from NextAuth to Clerk without any downtime,
 
 Create a server-side function that checks if the current NextAuth user exists in Clerk. If not, create the user in Clerk, generate a sign-in token, and pass it to the frontend.
 
+We are using a server and client wrapper in nextjs. This allows us to call the server-side functions directly and pass them to the frontend. No need to create an api or deal with fetching data.
+
 We are using the "external_id" attribute within the createUser function. This allows users to have a tenet table to store all user attributes outside of Clerk in their own user table.
 
 If you would like to use the user metadata section in Clerk's user object, we have a guide down below in the "Data Access" patterns sections in order to do this.
@@ -129,51 +131,82 @@ If you would like to use the user metadata section in Clerk's user object, we ha
 
 
 ```js
-// src/app/api/signInToken/route.tsx
+// src/app/_wrappers/serverWrapper.tsx
 import { auth } from "@/auth";
 import { db } from "@/server/neonDb";
 import { users } from "@/server/neonDb/schema";
 import {
   auth as clerkAuthFunction,
   clerkClient,
-  type User,
+  User,
 } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
+import ClientClerkcomponent from "./clientWrapper";
+import { Session } from "next-auth";
+import pRetry from "p-retry";
 
-export async function POST() {
+const createdNewUser = async (session: Session, createdUser: any) => {
+  const user = await db.query.users.findFirst({
+    where: eq(users.email, session.user!.email!),
+  });
+
+  if (!user) return <div>Failed to find user create user in db</div>;
+  // creates user in clerk, with password if it exists, and externalId as the user id
+  // to access tenet table attributes
+  createdUser = await clerkClient.users.createUser({
+    emailAddress: [session.user!.email!],
+    password: user.password ?? undefined,
+    skipPasswordChecks: true,
+    externalId: `${user.id}`,
+  });
+
+  return createdUser;
+};
+
+export default async function MigrationLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const session = await auth();
   const { userId }: { userId: string | null } = clerkAuthFunction();
 
-// we use these custom codes to tell the frontend that the user is already logged in
-  if (userId) return new Response("User already exists", { status: 222 });
-  if (!session?.user?.email)
-    return new Response("User not signed into next auth", { status: 222 });
+  if (userId) return <>{children}</>;
+
+  if (!session?.user) return <>{children}</>;
 
   // checks for user email already existing (inserted from batch import)
   const searchUser = await clerkClient.users.getUserList({
-    emailAddress: [session.user.email],
+    emailAddress: [session.user.email!],
   });
 
   let createdUser: User | null | undefined = null;
+
   if (searchUser.data.length > 0) {
     createdUser = searchUser.data[0];
   } else {
-    const user = await db.query.users.findFirst({
-      where: eq(users.email, session.user.email),
-    });
-
-    if (!user) throw new Error("User not found");
-    // creates user in clerk, with password if it exists, and externalId as the user id
-    // to access tenet table attributes
-    createdUser = await clerkClient.users.createUser({
-      emailAddress: [session.user.email],
-      password: user.password ?? undefined,
-      skipPasswordChecks: true,
-      externalId: `${user.id}`,
+    if (!session.user.email) return <div>Failed to create user in clerk</div>;
+    for (let i = 0; i < 30; i++) {
+      try {
+        await clerkClient.users.createUser({
+          emailAddress: [`${Math.random()}@gmail.com`],
+          skipPasswordRequirement: true,
+          skipPasswordChecks: true,
+        });
+      } catch (e) {
+        console.log(e);
+      }
+    }
+    createdUser = await pRetry(() => createdNewUser(session, createdUser), {
+      onFailedAttempt: (error) => {
+        console.log(
+          `Attempt ${error.attemptNumber} failed. There are ${error.retriesLeft} retries left.`
+        );
+      },
     });
   }
 
-  if (!createdUser) throw new Error("User not created");
+  if (!createdUser) return <div>Failed to create user</div>;
 
   // creates sign in token for user
   const signInToken: { token: string } = await fetch(
@@ -192,146 +225,91 @@ export async function POST() {
     return await res.json();
   });
 
-  if (!signInToken.token) throw new Error("Sign in token not created");
+  if (!signInToken.token) return <div>Failed to create sign in token</div>;
 
-  return new Response(JSON.stringify({ token: signInToken.token }), {
-    status: 201,
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+  return (
+    <>
+      <ClientClerkcomponent sessionId={signInToken.token} />
+      {children}
+    </>
+  );
 }
+
 
 ```
 
 #### Client Side Component
 
-This is a wrapper around your application wrapped in template.js.
+This is the client wrapper.
 
-Ok, I know this seems scary but let me talk you through it. Here we call the backend api we just wrote to create the user in Clerk and fetch the sign in token.
-
-In the fetch useEffect, we are using a package called p-retry, all this package does is implement exponential backoff when the fetch function fails. This is to solve the thundering herd of 10,000 current active users using your app with our createUser ratelimit of 20req/10sec.
-
-The second useEffect takes the token, and signs the user in. We do this by extracting signIn and setActive from useSignIn().
+All we do here is call the useEffect to sign the user in.
 
 ```js
-// src/app/trickleWrapper.tsx
+// src/app/_wrappers/clientWrapper.tsx
 
 "use client";
 
-import { useSession, useSignIn, useUser } from "@clerk/nextjs";
-import pRetry from "p-retry";
-import { useEffect, useRef, useState } from "react";
+import { useSignIn, useUser } from "@clerk/nextjs";
+import { useEffect, useState } from "react";
 
-export default function TestRQComponent({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+interface ClientClerkComponentProps {
+  sessionId: string;
+}
+
+export default function ClientClerkComponent({
+  sessionId,
+}: ClientClerkComponentProps) {
   const { signIn, setActive } = useSignIn();
   const { user } = useUser();
-  const { session } = useSession();
-  const fetchRan = useRef<boolean>(false);
-  const [signInId, setSignInId] = useState<string | null>(null);
-  const [signInToken, setSignInToken] = useState<string | null>(null);
+  const [signInProcessed, setSignInProcessed] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!fetchRan.current) {
-      if (signInToken !== null || signInId !== null) return;
-
-      const myFetch = async () => {
-        const res = await pRetry(
-          async () => {
-            const res = await fetch("/api/signInToken", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              cache: "force-cache",
-            });
-            return res;
-          },
-          {
-            retries: 100,
-            onFailedAttempt: (error) => {
-              console.log(`Attempt ${error.attemptNumber} failed.`);
-            },
-          }
-        );
-
-        if (res.status === 222) {
-          setSignInToken("none");
-          return;
-        }
-
-        const data = await res.json();
-        setSignInToken(data.token);
-      };
-      void myFetch();
-    }
-    return (): void => {
-      fetchRan.current = true;
-    };
-  }, [signInToken, signInId]);
-
-  useEffect(() => {
-    // gets the token from query and signs the user in
-    if (
-      !signIn ||
-      !setActive ||
-      session ||
-      signInId !== null ||
-      signInToken === null ||
-      signInToken === "none"
-    ) {
+    // magic link method to sign in using token
+    // instead of passing to url, passed from server
+    if (!signIn || !setActive || !sessionId) {
       return;
     }
 
     const createSignIn = async () => {
-      if (
-        !signIn ||
-        !setActive ||
-        signInId !== null ||
-        signInToken === null ||
-        signInToken === "none"
-      )
-        return;
-
       try {
         const res = await signIn.create({
           strategy: "ticket",
-          ticket: signInToken,
+          ticket: sessionId,
         });
 
-        setSignInId(res.createdSessionId);
-
-        void setActive({
+        console.log("RES: ", res);
+        await setActive({
           session: res.createdSessionId,
+          beforeEmit: () => setSignInProcessed(true),
         });
-      } catch (error) {
-        console.log("ERROR: ", error);
+      } catch (err) {
+        setSignInProcessed(true);
       }
     };
 
     void createSignIn();
-  }, [signIn, setActive, session, signInId, signInToken]);
+  }, [signIn, setActive, sessionId]);
+
+  if (!sessionId) {
+    return <div>no token provided</div>;
+  }
+
+  if (!signInProcessed) {
+    return <div>loading</div>;
+  }
+
+  if (!user) {
+    return <div>error invalid token {sessionId}</div>;
+  }
 
   return (
     <>
-      <div>
-        {user ? <div>USER CREATED: {user.id}</div> : null}
-        {children}
-      </div>
+      <div>Signed in Clerk {user.id}</div>
     </>
   );
 }
 
 ```
-
-#### React 19+
-You might notice we are using a useRef in order to prevent a second effect ran in strictmode, a common thing react does. You can find more information [here](https://github.com/facebook/react/issues/24670), [here](https://github.com/reactjs/react.dev/issues/6123), and [here](https://github.com/reactjs/react.dev/pull/6777). The only reason this ever worked is because "refs not mounted/un-mounted in strict mode" was a known bug since 2022, and it is getting fixed in React 19.
-
-I'm going to have a branch with React a TanStack Query Implementation. No need for scary useEffects 😅
 
 #### Wrapper
 
@@ -341,11 +319,12 @@ You can find more information in the nextjs docs [here](https://nextjs.org/docs/
 
 ```js
 // src/app/template.tsx
-import TrickleWrapper from "./trickleWrapper";
+import MigrationLayout from "./_wrappers/serverWrapper";
 
 export default function Tempalate({ children }: { children: React.ReactNode }) {
-  return <TrickleWrapper>{children}</TrickleWrapper>;
+  return <MigrationLayout>{children}</MigrationLayout>;
 }
+
 ```
 
 ### 5. Batch Import
