@@ -16,17 +16,20 @@ export default async function Home() {
     return redirect("/sign-in");
   }
 
-  const userAttribute = await db.query.userAttributes.findFirst({
-    where: eq(userAttributes.id, clerkUser!.userId),
-  });
+  // since this component is server rendered, it renders before the
+  // template, and the clerkUser will be null
+  // while this is supposed to be a demo this is not the best practice
+  // const userAttribute = await db.query.userAttributes.findFirst({
+  //   where: eq(userAttributes.id, clerkUser!.userId),
+  // });
 
   return (
     <>
       <div>Signed In with Next-Auth</div>
       <div>{JSON.stringify(session)}</div>
-      <div>
+      {/* <div>
         Role Metadata: {gettingMetadata!.publicMetadata.role! as string}
-      </div>
+      </div> */}
       {/* <div>Special Attribute: {userAttribute?.attribute}</div> */}
       <form
         action={async () => {

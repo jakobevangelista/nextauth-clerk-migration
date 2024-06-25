@@ -1,8 +1,8 @@
 "use client";
 
 import { useSession, useSignIn, useUser } from "@clerk/nextjs";
-import pRetry from "p-retry";
-import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 export default function TrickleWrapper({
   children,
@@ -12,80 +12,36 @@ export default function TrickleWrapper({
   const { signIn, setActive } = useSignIn();
   const { user } = useUser();
   const { session } = useSession();
-  const fetchRan = useRef<boolean>(false);
   const [signInId, setSignInId] = useState<string | null>(null);
-  const [signInToken, setSignInToken] = useState<string | null>(null);
 
-  // const queryClient = useQueryClient();
-  // const query = useQuery({
-  //   queryKey: ["token"],
-  //   queryFn: async () => {
-  //     console.log("FETCHING");
-  //     const res = await fetch("/api/signInToken", {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //       },
-  //     });
-  //     if (res.status === 200) {
-  //       return { token: "none" };
-  //     }
-  //     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  //     const json = await res.json();
-  //     //   console.log(json);
-  //     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  //     return json;
-  //   },
-  //   retry: (failureCount, error) => {
-  //     console.log(error);
-  //     const retryDelay = 1000 * 2 ** failureCount;
-  //     setTimeout(() => {
-  //       void queryClient.invalidateQueries();
-  //     }, retryDelay);
-  //     return true;
-  //   },
-  // });
-
-  useEffect(() => {
-    if (!fetchRan.current) {
-      if (signInToken !== null || signInId !== null) return;
-
-      const myFetch = async () => {
-        const res = await pRetry(
-          async () => {
-            const res = await fetch("/api/signInToken", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              cache: "force-cache",
-            });
-            return res;
-          },
-          {
-            retries: 100,
-            onFailedAttempt: (error) => {
-              console.log(`Attempt ${error.attemptNumber} failed.`);
-            },
-          }
-        );
-
-        if (res.status === 222) {
-          setSignInToken("none");
-          return;
-        }
-
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const data = await res.json();
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
-        setSignInToken(data.token);
-      };
-      void myFetch();
-    }
-    return (): void => {
-      fetchRan.current = true;
-    };
-  }, [signInToken, signInId]);
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: ["token"],
+    queryFn: async () => {
+      const res = await fetch("/api/signInToken", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      if (res.status === 222) {
+        return { token: "none" };
+      }
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const json = await res.json();
+      //   console.log(json);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      return json;
+    },
+    retry: (failureCount, error) => {
+      console.log(error);
+      const retryDelay = 1000 * 2 ** failureCount;
+      setTimeout(() => {
+        void queryClient.invalidateQueries();
+      }, retryDelay);
+      return true;
+    },
+  });
 
   useEffect(() => {
     // gets the token from query and signs the user in
@@ -94,28 +50,22 @@ export default function TrickleWrapper({
       !setActive ||
       // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
       session ||
-      signInId !== null ||
-      signInToken === null ||
-      signInToken === "none"
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      query.data.token === "none" ||
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      !query.data.token
     ) {
       return;
     }
 
     const createSignIn = async () => {
-      if (
-        !signIn ||
-        !setActive ||
-        signInId !== null ||
-        signInToken === null ||
-        signInToken === "none"
-      )
-        return;
+      if (!signIn || !setActive || signInId !== null) return;
 
       try {
         const res = await signIn.create({
           strategy: "ticket",
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-          ticket: signInToken,
+          ticket: query.data.token,
         });
 
         setSignInId(res.createdSessionId);
@@ -129,7 +79,7 @@ export default function TrickleWrapper({
     };
 
     void createSignIn();
-  }, [signIn, setActive, session, signInId, signInToken]);
+  }, [signIn, setActive, session, signInId, query.data]);
 
   return (
     <>

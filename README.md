@@ -204,26 +204,23 @@ export async function POST() {
 
 ```
 
-#### Client Side Component
+#### Client Side Component (React Query Integration)
 
 This is a wrapper around your application wrapped in template.js.
 
-Ok, I know this seems scary but let me talk you through it. Here we call the backend api we just wrote to create the user in Clerk and fetch the sign in token.
+Here we call the backend api we just wrote to create the user in Clerk and fetch the sign in token. Since we are using react query, there's no need to worry about fetching from a useEffect nor any worrying to implement a package for the exponential backoff, it's all bundled within RQ!
 
-In the fetch useEffect, we are using a package called p-retry, all this package does is implement exponential backoff when the fetch function fails. This is to solve the thundering herd of 10,000 current active users using your app with our createUser ratelimit of 20req/10sec.
-
-The second useEffect takes the token, and signs the user in. We do this by extracting signIn and setActive from useSignIn().
+The useEffect takes the token, and signs the user in. We do this by extracting signIn and setActive from useSignIn().
 
 ```js
 // src/app/trickleWrapper.tsx
-
 "use client";
 
 import { useSession, useSignIn, useUser } from "@clerk/nextjs";
-import pRetry from "p-retry";
-import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
-export default function TestRQComponent({
+export default function TrickleWrapper({
   children,
 }: {
   children: React.ReactNode;
@@ -231,48 +228,34 @@ export default function TestRQComponent({
   const { signIn, setActive } = useSignIn();
   const { user } = useUser();
   const { session } = useSession();
-  const fetchRan = useRef<boolean>(false);
   const [signInId, setSignInId] = useState<string | null>(null);
-  const [signInToken, setSignInToken] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!fetchRan.current) {
-      if (signInToken !== null || signInId !== null) return;
-
-      const myFetch = async () => {
-        const res = await pRetry(
-          async () => {
-            const res = await fetch("/api/signInToken", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              cache: "force-cache",
-            });
-            return res;
-          },
-          {
-            retries: 100,
-            onFailedAttempt: (error) => {
-              console.log(`Attempt ${error.attemptNumber} failed.`);
-            },
-          }
-        );
-
-        if (res.status === 222) {
-          setSignInToken("none");
-          return;
-        }
-
-        const data = await res.json();
-        setSignInToken(data.token);
-      };
-      void myFetch();
-    }
-    return (): void => {
-      fetchRan.current = true;
-    };
-  }, [signInToken, signInId]);
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: ["token"],
+    queryFn: async () => {
+      const res = await fetch("/api/signInToken", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      if (res.status === 222) {
+        return { token: "none" };
+      }
+      const json = await res.json();
+      return json;
+    },
+    // exponential backoff
+    retry: (failureCount, error) => {
+      console.log(error);
+      const retryDelay = 1000 * 2 ** failureCount;
+      setTimeout(() => {
+        void queryClient.invalidateQueries();
+      }, retryDelay);
+      return true;
+    },
+  });
 
   useEffect(() => {
     // gets the token from query and signs the user in
@@ -280,27 +263,19 @@ export default function TestRQComponent({
       !signIn ||
       !setActive ||
       session ||
-      signInId !== null ||
-      signInToken === null ||
-      signInToken === "none"
+      query.data.token === "none" ||
+      !query.data.token
     ) {
       return;
     }
 
     const createSignIn = async () => {
-      if (
-        !signIn ||
-        !setActive ||
-        signInId !== null ||
-        signInToken === null ||
-        signInToken === "none"
-      )
-        return;
+      if (!signIn || !setActive || signInId !== null) return;
 
       try {
         const res = await signIn.create({
           strategy: "ticket",
-          ticket: signInToken,
+          ticket: query.data.token,
         });
 
         setSignInId(res.createdSessionId);
@@ -314,7 +289,7 @@ export default function TestRQComponent({
     };
 
     void createSignIn();
-  }, [signIn, setActive, session, signInId, signInToken]);
+  }, [signIn, setActive, session, signInId, query.data]);
 
   return (
     <>
@@ -327,11 +302,6 @@ export default function TestRQComponent({
 }
 
 ```
-
-#### React 19+
-You might notice we are using a useRef in order to prevent a second effect ran in strictmode, a common thing react does. You can find more information [here](https://github.com/facebook/react/issues/24670), [here](https://github.com/reactjs/react.dev/issues/6123), and [here](https://github.com/reactjs/react.dev/pull/6777). The only reason this ever worked is because "refs not mounted/un-mounted in strict mode" was a known bug since 2022, and it is getting fixed in React 19.
-
-I'm going to have a branch with React a TanStack Query Implementation. No need for scary useEffects 😅
 
 #### Wrapper
 
