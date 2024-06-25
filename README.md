@@ -632,7 +632,7 @@ export default async function Home() {
 
 #### Here is an example of accessing the user metadata through Clerk's metadata
 
-If you would like to store user metadata within Clerk's User object. Here is how you do it.
+If you would like to store user metadata within Clerk's User object, here is how you do it.
 
 ```js
 // wherever you call createUser
