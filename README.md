@@ -208,7 +208,7 @@ export async function POST() {
 
 Ok, I know this seems scary but let me talk you through it. Here we call the backend api we just wrote to create the user in clerk and fetch the sign in token.
 
-In the fetch useEffect, we are using a package calle p-retry, all this package does is implement exponential backoff when the fetch function fails. This is to solve the thundering herd of 10,000 current active users using your app with our createUser ratelimit of 20req/10sec.
+In the fetch useEffect, we are using a package called p-retry, all this package does is implement exponential backoff when the fetch function fails. This is to solve the thundering herd of 10,000 current active users using your app with our createUser ratelimit of 20req/10sec.
 
 The second useEffect takes the token, and signs the user in. We do this by extracting signIn and setActive from useSignIn().
 
