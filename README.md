@@ -339,7 +339,7 @@ You should start the batch after the thundering herd is done thundering aka the 
 
 #### Script to get all users in existing database within a queue
 
-Store all users in a queue for batch processing. This can be done using a standalone nodejs script. The implementation uses nextjs app router's server components. 
+Store all users in a queue for batch processing. This can be done using a standalone nodejs script. The implementation uses nextjs app router's server components and Upstash for the queue.
 
 The process is just iterating through all the users, storing them in a queue for the cron job to process individually. Definitely scaling concerns but you can modify this solution to fit your scale.
 
