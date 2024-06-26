@@ -1,3 +1,4 @@
+"use server";
 import { auth } from "@/auth";
 import { db } from "@/server/neonDb";
 import { users } from "@/server/neonDb/schema";
@@ -5,7 +6,8 @@ import { eq } from "drizzle-orm";
 
 // returns true if the old auth system has a session
 export async function oldCheckHasSession() {
-  return await auth();
+  const session = await auth();
+  return session;
 }
 
 // returns data about the user in a specific format

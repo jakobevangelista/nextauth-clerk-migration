@@ -28,6 +28,9 @@ During migration, there are going to be 2 major states for your app, we label th
 ## Migration Steps
 
 ## During the migration ('migrating' Branch)
+
+During this part of the migratiion, users will sign in and sign up through nextauth.
+
 ### 1. Install @clerk/nextjs
 
 (I dont know how to do the cool tabbed thing to install in npm, yarn, pnpm, bun but once I learn how to do it, imma do it)
@@ -223,7 +226,7 @@ import { useSession, useSignIn, useUser } from "@clerk/nextjs";
 import pRetry from "p-retry";
 import { useEffect, useRef, useState } from "react";
 
-export default function TestRQComponent({
+export default function TrickleWrapper({
   children,
 }: {
   children: React.ReactNode;
@@ -247,8 +250,11 @@ export default function TestRQComponent({
               headers: {
                 "Content-Type": "application/json",
               },
-              cache: "force-cache",
             });
+            // if not ok, throw error, pRetry does exponential backoffs
+            if (!res.ok) {
+              throw new Error(res.statusText);
+            }
             return res;
           },
           {
@@ -326,12 +332,13 @@ export default function TestRQComponent({
   );
 }
 
+
 ```
 
 #### React 19+
 You might notice we are using a useRef in order to prevent a second effect ran in strictmode, a common thing react does. You can find more information [here](https://github.com/facebook/react/issues/24670), [here](https://github.com/reactjs/react.dev/issues/6123), and [here](https://github.com/reactjs/react.dev/pull/6777). The only reason this ever worked is because "refs not mounted/un-mounted in strict mode" was a known bug since 2022, and it is getting fixed in React 19.
 
-I'm going to have a branch with React a TanStack Query Implementation. No need for scary useEffects 😅
+In the react-query-migrating, there is an implementation using react query. And in the server-component-migrating branch, there is an implementation using server components. No need for scary useEffects 😅
 
 #### Wrapper
 
@@ -751,4 +758,4 @@ export default function SignInComponent() {
 2. Remove trickle and batch code
 
 ## Wrapping Up
-With your users now imported into Clerk and your application updated, you can fully switch to using Clerk for authentication. This guide provides a comprehensive approach to migrating from Next-Auth to Clerk with minimal disruption to
+With your users now imported into Clerk and your application updated, you can fully switch to using Clerk for authentication. This guide provides a comprehensive approach to migrating from Next-Auth to Clerk!
