@@ -226,7 +226,7 @@ import { useSession, useSignIn, useUser } from "@clerk/nextjs";
 import pRetry from "p-retry";
 import { useEffect, useRef, useState } from "react";
 
-export default function TestRQComponent({
+export default function TrickleWrapper({
   children,
 }: {
   children: React.ReactNode;
@@ -250,8 +250,11 @@ export default function TestRQComponent({
               headers: {
                 "Content-Type": "application/json",
               },
-              cache: "force-cache",
             });
+            // if not ok, throw error, pRetry does exponential backoffs
+            if (!res.ok) {
+              throw new Error(res.statusText);
+            }
             return res;
           },
           {
@@ -328,6 +331,7 @@ export default function TestRQComponent({
     </>
   );
 }
+
 
 ```
 
