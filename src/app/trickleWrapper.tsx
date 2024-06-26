@@ -29,7 +29,7 @@ export default function TrickleWrapper({
         // });
         const res = await pRetry(
           async () => {
-            const res = await fetch("/api/signInToken", {
+            const res = await fetch("/api/auth-migration", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",

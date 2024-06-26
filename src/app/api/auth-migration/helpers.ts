@@ -16,7 +16,8 @@ export async function oldGetUserData() {
   });
 
   return {
+    id: user?.id,
     emailAddress: [session!.user!.email!],
-    passwordHash: user!.password!,
+    passwordHash: user!.password,
   };
 }

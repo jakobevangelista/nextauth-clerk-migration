@@ -24,8 +24,10 @@ export async function POST() {
       skipPasswordChecks: true,
       externalId: `${user.id}`,
     });
-  } catch (e) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (e: any) {
     if (
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       (e.errors[0].message as string).includes("That email address is taken")
     ) {
       // checks for user email already existing (inserted from batch import)
