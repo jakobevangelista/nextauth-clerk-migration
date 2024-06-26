@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession, useSignIn, useUser } from "@clerk/nextjs";
+import { UserButton, useSession, useSignIn, useUser } from "@clerk/nextjs";
 import pRetry from "p-retry";
 import { useEffect, useRef, useState } from "react";
 
@@ -16,47 +16,17 @@ export default function TrickleWrapper({
   const [signInId, setSignInId] = useState<string | null>(null);
   const [signInToken, setSignInToken] = useState<string | null>(null);
 
-  // const queryClient = useQueryClient();
-  // const query = useQuery({
-  //   queryKey: ["token"],
-  //   queryFn: async () => {
-  //     console.log("FETCHING");
-  //     const res = await fetch("/api/signInToken", {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //       },
-  //     });
-  //     if (res.status === 200) {
-  //       return { token: "none" };
-  //     }
-  //     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  //     const json = await res.json();
-  //     //   console.log(json);
-  //     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  //     return json;
-  //   },
-  //   retry: (failureCount, error) => {
-  //     console.log(error);
-  //     const retryDelay = 1000 * 2 ** failureCount;
-  //     setTimeout(() => {
-  //       void queryClient.invalidateQueries();
-  //     }, retryDelay);
-  //     return true;
-  //   },
-  // });
-
   useEffect(() => {
     if (!fetchRan.current) {
       if (signInToken !== null || signInId !== null) return;
 
       const myFetch = async () => {
-        await fetch("/api/hitTheLimit", {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
+        // await fetch("/api/hitTheLimit", {
+        //   method: "GET",
+        //   headers: {
+        //     "Content-Type": "application/json",
+        //   },
+        // });
         const res = await pRetry(
           async () => {
             const res = await fetch("/api/signInToken", {
@@ -144,6 +114,7 @@ export default function TrickleWrapper({
     <>
       <div>
         {user ? <div>USER CREATED: {user.id}</div> : null}
+        <UserButton />
         {children}
       </div>
     </>

@@ -1,4 +1,5 @@
 import { auth, signIn } from "@/auth";
+import { clerkClient } from "@clerk/nextjs/server";
 
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";

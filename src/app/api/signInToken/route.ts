@@ -1,60 +1,43 @@
-import { auth } from "@/auth";
 import { db } from "@/server/neonDb";
 import { users } from "@/server/neonDb/schema";
-import {
-  auth as clerkAuthFunction,
-  clerkClient,
-  type User,
-} from "@clerk/nextjs/server";
+import { auth, clerkClient, type User } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
+import { oldCheckHasSession, oldGetUserData } from "./helpers";
 
 export async function POST() {
-  const session = await auth();
-  const { userId }: { userId: string | null } = clerkAuthFunction();
+  const session = await oldCheckHasSession();
+  const { userId }: { userId: string | null } = auth();
 
   if (userId) return new Response("User already exists", { status: 222 });
   if (!session?.user?.email)
     return new Response("User not signed into next auth", { status: 222 });
 
-  // checks for user email already existing (inserted from batch import)
-  const searchUser = await clerkClient.users.getUserList({
-    emailAddress: [session.user.email],
-  });
-
   let createdUser: User | null | undefined = null;
-  if (searchUser.data.length > 0) {
-    createdUser = searchUser.data[0];
-  } else {
-    // if (Math.random() > 0.5) {
-    //   for (let i = 0; i < 30; i++) {
-    //     try {
-    //       await clerkClient.users.createUser({
-    //         emailAddress: [`${Math.random()}@gmail.com`],
-    //         skipPasswordRequirement: true,
-    //         skipPasswordChecks: true,
-    //       });
-    //     } catch (e) {
-    //       throw new Error("User not created");
-    //     }
-    //     console.log("User created");
-    //   }
-    // }
-    const user = await db.query.users.findFirst({
-      where: eq(users.email, session.user.email),
-    });
+
+  try {
+    const user = await oldGetUserData();
 
     if (!user) throw new Error("User not found");
-    // creates user in clerk, with password if it exists, and externalId as the user id
-    // to access tenet table attributes
     createdUser = await clerkClient.users.createUser({
       emailAddress: [session.user.email],
-      password: user.password ?? undefined,
+      password: user.passwordHash ?? undefined,
       skipPasswordChecks: true,
       externalId: `${user.id}`,
     });
+  } catch (e) {
+    if (
+      (e.errors[0].message as string).includes("That email address is taken")
+    ) {
+      // checks for user email already existing (inserted from batch import)
+      const searchUser = await clerkClient.users.getUserList({
+        emailAddress: [session.user.email],
+      });
+      createdUser = searchUser.data[0];
+    }
   }
 
   if (!createdUser) throw new Error("User not created");
+  console.log("USER: ", createdUser.primaryEmailAddress?.emailAddress);
 
   // creates sign in token for user
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
