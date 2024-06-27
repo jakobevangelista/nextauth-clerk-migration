@@ -15,13 +15,14 @@ Before you begin, ensure you have the following:
 ## Migration Overview
 
 To ensure a smooth migration with minimal disruption to your users, we will follow these steps:
-1. [**Install @clerk/nextjs**](#1-install-clerknextjs)
+1. [**Install @clerk/nextjs and p-retry**](#1-install-clerknextjs-and-p-retry)
 2. [**Add Clerk Middleware**](#2-add-clerk-middleware)
 3. [**Add Clerk provider**](#3-wrap-application-in-clerkprovider-and-migrationlayout-and-queryclient)
-4. [**Implement Trickle Migration**](#4-trickle-migration)
-5. [**Implement batch migration**](#5-batch-import)
+4. [**Clone the _auth-migration folder**](#4-clone-the-srcapp_auth-migration-folder)
+5. [**Implement trickle migration**](#5-trickle-migration)
 6. [**Switch Data Access Patterns to Clerk**](#6-migrate-data-access-patterns-srcapppagetsx)
-7. [**Implement Sign-up and Sign-in with Clerk**](#7-sign-ups-and-sign-ins-go-through-the-clerk-components)
+7. [**Implement Batch Import**](#7-batch-import)
+8. [**Implement Sign-up and Sign-in with Clerk**](#8-sign-ups-and-sign-ins-go-through-the-clerk-components)
 
 During migration, there are going to be 2 major states for your app, we label them as "during the migration" and "after the migration".
 
@@ -31,7 +32,7 @@ During migration, there are going to be 2 major states for your app, we label th
 
 During this part of the migratiion, users will sign in and sign up through nextauth.
 
-### 1. Install @clerk/nextjs, p-retry
+### 1. Install @clerk/nextjs and p-retry
 
 (I dont know how to do the cool tabbed thing to install in npm, yarn, pnpm, bun but once I learn how to do it, imma do it)
 
@@ -52,10 +53,9 @@ bun add @clerk/nextjs p-retry
 
 ### 2. Add Clerk Middleware
 
-We need Clerk's middleware in order to use useSign in.
+We need Clerk's middleware in order to use useSignIn within &lt;TrickleWrapper>.
 
 First, add the Clerk middleware alongside the existing NextAuth middleware. Clerk middleware has to be the top wrapper for the entire middleware. In the example provided, we put a sample middleware functions within the next auth middleware, you can add whatever custom middleware functions you have.
-
 
 ```js
 // src/app/middleware.ts
@@ -83,6 +83,8 @@ export const config = {
 ### 3. Wrap Application in &lt;ClerkProvider>
 
 Wrap your application layout in the &lt;ClerkProvider> component to enable Clerk authentication. 
+
+(Highlight the lines of the wrapper)
 
 ```js 
 // src/app/layout.tsx
@@ -181,6 +183,8 @@ export async function oldGetUserData() {
 In /app/api/auth-migration, copy and paste this code into route.ts. Make sure to use your own helper functions you previously implemented.
 
 ```js
+// src/app/api/auth-migration/route.ts
+
 import {
   oldCheckHasSession,
   oldGetUserData,
@@ -272,6 +276,9 @@ export function auth() {
 // src/app/page.tsx
 
 import { auth, signOut } from "@/auth";
+import {
+  oldCheckHasSession,
+} from "@/app/_auth-migration/sampleHelpers";
 import { auth as authPatch } from "./authPatch";
 import { db } from "@/server/neonDb";
 import { userAttributes, users } from "@/server/neonDb/schema";
@@ -280,7 +287,7 @@ import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 export default async function Home() {
-  const session = await auth();
+  const session = await oldCheckHasSession();
   const clerkUser = authPatch();
   if (session === null) {
     return redirect("/sign-in");
@@ -316,6 +323,9 @@ export default async function Home() {
 
 import { auth as nextAuthFunction } from "@/auth";
 import { db } from "@/server/neonDb";
+import {
+  oldCheckHasSession,
+} from "@/app/_auth-migration/sampleHelpers";
 import { users } from "@/server/neonDb/schema";
 import { auth } from "@clerk/nextjs/server";
 
@@ -326,7 +336,7 @@ import { redirect } from "next/navigation";
 // if not in Clerk, change password in nextauth
 export default async function Home() {
   const { userId }: { userId: string | null } = auth();
-  const nexAuthUser = await nextAuthFunction();
+  const nexAuthUser = await oldCheckHasSession();
 
   if (userId === null && nexAuthUser === null) {
     return redirect("/sign-in");
