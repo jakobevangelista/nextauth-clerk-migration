@@ -1,5 +1,5 @@
 import { auth, signOut } from "@/auth";
-import { auth as authPatch } from "./authPatch";
+import { auth as authPatch } from "./_auth-migration/authPatch";
 
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";

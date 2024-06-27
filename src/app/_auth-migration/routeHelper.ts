@@ -1,10 +1,5 @@
-import { db } from "@/server/neonDb";
-import { users } from "@/server/neonDb/schema";
-
 import { auth, clerkClient, type User } from "@clerk/nextjs/server";
-import { eq } from "drizzle-orm";
 import { type Session } from "next-auth";
-import { oldCheckHasSession, oldGetUserData } from "./helpers";
 // import { oldCheckHasSession, oldGetUserData } from "./helpers";
 export const dynamic = "force-dynamic";
 
