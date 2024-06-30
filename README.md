@@ -146,8 +146,9 @@ export default function Tempalate({ children }: { children: React.ReactNode }) {
 
 #### Create the endpoint and wrapper functions
 
-Next-auth allows you to bring your own db, that means we can't encompass all the possible adapters, but what we can do is have you implement helper functions that feed into our api. We require 2 There are examples in the _auth-migration folder in sampleHelper.ts to see what our createAPI function requires. One function is just the old auth() function from nextauth, we have you implement this because now you can use this function throughout your whole app when you are switching the data access layer from next-auth's auth() to Clerk's auth(). The second function is an object with the next-auth id, the user's email, and the user's password.
+Next-auth allows you to bring your own db, that means we can't encompass all the possible adapters, but what we can do is have you implement helper functions that feed into our api. We require 2 There are examples in the _auth-migration folder in sampleHelper.ts to see what our createAPI function requires. One function is just the old auth() function from nextauth, we have you implement this because now you can use this function throughout your whole app when you are switching the data access layer from next-auth's auth() to Clerk's auth(). 
 
+The second function an exposed version of the createUser function's params, so you can pass whatever options you'd like as an object through this function, we've also exported the type for you.
 
 These are an example of the helper functions, you have to implement them yourself using your adapter. This example uses drizzle ORM with Neon Postgres.
 ```js
@@ -158,6 +159,7 @@ import { auth } from "@/auth";
 import { db } from "@/server/neonDb";
 import { users } from "@/server/neonDb/schema";
 import { eq } from "drizzle-orm";
+import { type CreateUserParams } from "./routeHelper";
 
 // returns true if the old auth system has a session
 export async function oldCheckHasSession() {
@@ -165,7 +167,7 @@ export async function oldCheckHasSession() {
   return session;
 }
 
-// returns data about the user in a specific format
+// returns data about the user using creatUserParams
 export async function oldGetUserData() {
   const session = await auth();
   const user = await db.query.users.findFirst({
@@ -175,9 +177,12 @@ export async function oldGetUserData() {
   return {
     id: user?.id,
     emailAddress: [session!.user!.email!],
-    passwordHash: user!.password,
-  };
+    password: user!.password,
+    skipPasswordChecks: true,
+    skipPasswordRequirement: true,
+  } as CreateUserParams;
 }
+
 ```
 
 In /app/api/auth-migration, copy and paste this code into route.ts. Make sure to use your own helper functions you previously implemented.

@@ -3,16 +3,52 @@ import { type Session } from "next-auth";
 // import { oldCheckHasSession, oldGetUserData } from "./helpers";
 export const dynamic = "force-dynamic";
 
+// prolly need to import these types from clerk, ask colin about
+// exporting these types
+type UserMetadataParams = {
+  publicMetadata?: UserPublicMetadata;
+  privateMetadata?: UserPrivateMetadata;
+  unsafeMetadata?: UserUnsafeMetadata;
+};
+type PasswordHasher =
+  | "argon2i"
+  | "argon2id"
+  | "bcrypt"
+  | "bcrypt_sha256_django"
+  | "md5"
+  | "pbkdf2_sha256"
+  | "pbkdf2_sha256_django"
+  | "pbkdf2_sha1"
+  | "phpass"
+  | "scrypt_firebase"
+  | "scrypt_werkzeug"
+  | "sha256";
+type UserPasswordHashingParams = {
+  passwordDigest: string;
+  passwordHasher: PasswordHasher;
+};
+export type CreateUserParams = {
+  externalId?: string;
+  emailAddress?: string[];
+  phoneNumber?: string[];
+  username?: string;
+  password?: string;
+  firstName?: string;
+  lastName?: string;
+  skipPasswordChecks?: boolean;
+  skipPasswordRequirement?: boolean;
+  totpSecret?: string;
+  backupCodes?: string[];
+  createdAt?: Date;
+} & UserMetadataParams &
+  (UserPasswordHashingParams | object);
+
 export function createMigrationHandler({
   oldCheckHasSession,
   oldGetUserData,
 }: {
   oldCheckHasSession: () => Promise<Session | null>;
-  oldGetUserData: () => Promise<{
-    id: string | undefined;
-    emailAddress: string[];
-    passwordHash: string | null;
-  }>;
+  oldGetUserData: () => Promise<CreateUserParams>;
 }) {
   return async function udontknowthepainittooktomakethishappen() {
     const session = await oldCheckHasSession();
@@ -28,12 +64,7 @@ export function createMigrationHandler({
       const user = await oldGetUserData();
 
       if (!user) throw new Error("User not found");
-      createdUser = await clerkClient.users.createUser({
-        emailAddress: [session.user.email],
-        password: user.passwordHash ?? undefined,
-        skipPasswordChecks: true,
-        externalId: `${user.id}`,
-      });
+      createdUser = await clerkClient.users.createUser(user);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       if (
