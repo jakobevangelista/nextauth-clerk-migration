@@ -280,21 +280,15 @@ export function auth() {
 ```js
 // src/app/page.tsx
 
-import { auth, signOut } from "@/auth";
-import {
-  oldCheckHasSession,
-} from "@/app/_auth-migration/sampleHelpers";
 import { auth as authPatch } from "./authPatch";
 import { db } from "@/server/neonDb";
-import { userAttributes, users } from "@/server/neonDb/schema";
+import { userAttributes } from "@/server/neonDb/schema";
 import { eq } from "drizzle-orm";
-
 import { redirect } from "next/navigation";
 
 export default async function Home() {
-  const session = await oldCheckHasSession();
   const clerkUser = authPatch();
-  if (session === null) {
+  if (clerkUser === null) {
     return redirect("/sign-in");
   }
 
@@ -304,17 +298,7 @@ export default async function Home() {
 
   return (
     <>
-      <div>Signed In with Next-Auth</div>
-      <div>{JSON.stringify(session)}</div>
       <div>Special Attribute: {userAttribute?.attribute}</div>
-      <form
-        action={async () => {
-          "use server";
-          await signOut();
-        }}
-      >
-        <button type="submit">Sign Out</button>
-      </form>
     </>
   );
 }
@@ -468,15 +452,9 @@ You can tune the rate of batching by adjusting the for loop or adjusting the cro
 import { db } from "@/server/neonDb";
 import { userAttributes } from "@/server/neonDb/schema";
 import { clerkClient } from "@clerk/nextjs/server";
-import { Receiver } from "@upstash/qstash";
 import { Redis } from "@upstash/redis";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
-
-const receiver = new Receiver({
-  currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY!,
-  nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY!,
-});
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
@@ -484,26 +462,6 @@ const redis = new Redis({
 });
 
 export async function POST() {
-  const headersList = headers();
-  const signature = headersList.get("Upstash-Signature");
-
-  if (!signature) {
-    return new Response("No signature", { status: 401 });
-  }
-
-  const isValid = await receiver.verify({
-    body: "",
-    signature,
-    url: process.env.WEBHOOK_URL!,
-  });
-
-  if (!isValid) {
-    return new Response("Invalid signature", { status: 401 });
-  }
-
-  // --- everything above this line is queue specific code to
-  // authenticate the queue api ---
-
   const lengthOfQueue = await redis.llen("key");
 
   // you can modify how many requests you want your queue to pop here,
