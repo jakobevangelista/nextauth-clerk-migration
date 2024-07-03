@@ -4,8 +4,11 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 
+// import deeznuts from "jakob-first-npm-package";
+
 export default async function SignIn() {
   const session = await auth();
+  deeznuts();
   if (session === null) {
     return (
       <>

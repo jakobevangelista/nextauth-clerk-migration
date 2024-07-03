@@ -3,12 +3,7 @@
 import { UserButton, useSession, useSignIn, useUser } from "@clerk/nextjs";
 import pRetry from "p-retry";
 import { useEffect, useRef, useState } from "react";
-
-export default function TrickleWrapper({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function TrickleWrapper({ children }: { children: React.ReactNode }) {
   const { signIn, setActive } = useSignIn();
   const { user } = useUser();
   const { session } = useSession();

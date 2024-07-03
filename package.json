@@ -17,12 +17,15 @@
     "@upstash/qstash": "^2.5.5",
     "@upstash/redis": "^1.31.6",
     "drizzle-orm": "^0.31.2",
+    "jakob-first-npm-package": "^1.0.11",
     "next": "14.2.4",
     "next-auth": "^5.0.0-beta.19",
+    "nextauth-clerk-migration-package": "^0.1.3",
     "p-retry": "^6.2.0",
     "react": "^18",
     "react-dom": "^18",
-    "svix": "^1.24.0"
+    "svix": "^1.24.0",
+    "tsup-npm-package-example": "^1.0.0"
   },
   "devDependencies": {
     "@tanstack/eslint-plugin-query": "^5.43.1",
