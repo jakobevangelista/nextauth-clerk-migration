@@ -4,11 +4,9 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 
-// import deeznuts from "jakob-first-npm-package";
-
 export default async function SignIn() {
   const session = await auth();
-  deeznuts();
+
   if (session === null) {
     return (
       <>
@@ -46,6 +44,22 @@ export default async function SignIn() {
             <input className="text-black" name="password" type="password" />
           </label>
           <button>Sign In with Credentials</button>
+        </form>
+        <form
+          action={async () => {
+            "use server";
+            await fetch("http://localhost:3001/api/done-for-you-batch", {
+              method: "GET",
+
+              headers: {
+                "Content-Type": "application/json",
+              },
+              // body: JSON.stringify({ id: "deeznuts" }),
+              cache: "no-store",
+            });
+          }}
+        >
+          <button type="submit">get all dem users into da queue</button>
         </form>
       </>
     );

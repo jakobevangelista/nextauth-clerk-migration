@@ -1,12 +1,11 @@
 // src/app/api/batch/route.ts
 
-import { db } from "@/server/neonDb";
-import { userAttributes } from "@/server/neonDb/schema";
+import { oldGetUserById } from "@/app/_auth-migration/sampleHelpers";
 import { clerkClient } from "@clerk/nextjs/server";
 import { Receiver } from "@upstash/qstash";
 import { Redis } from "@upstash/redis";
-import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
+import pRetry, { AbortError } from "p-retry";
 
 const receiver = new Receiver({
   currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY!,
@@ -36,30 +35,33 @@ export async function POST() {
     return new Response("Invalid signature", { status: 401 });
   }
 
-  const lengthOfQueue = await redis.llen("key");
+  const lengthOfQueue = await redis.llen(process.env.CLERK_SECRET_KEY!);
   const lengthOfLoop = lengthOfQueue > 20 ? 20 : lengthOfQueue;
   for (let i = 0; i < lengthOfLoop; i++) {
-    const email = await redis.lpop<string | null>("email");
-    const password = await redis.lpop<string | null>("password");
-    const id = await redis.lpop<string>("id");
-    if (!email) break;
+    const id = await redis.lpop<string>(process.env.CLERK_SECRET_KEY!);
 
-    const searchUser = await clerkClient.users.getUserList({
-      emailAddress: [email],
-    });
+    const user = await oldGetUserById(id!);
 
-    if (searchUser.data.length > 0) {
-      continue;
-    } else {
-      await clerkClient.users.createUser({
-        emailAddress: [email],
-        password: password === "null" ? undefined : password!,
-        externalId: id!,
-        skipPasswordRequirement: true,
-        skipPasswordChecks: true,
-      });
-    }
+    await pRetry(
+      async () => {
+        try {
+          await clerkClient.users.createUser(user);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } catch (e: any) {
+          if (
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            (e.errors[0].message as string).includes(
+              "That email address is taken"
+            )
+          ) {
+            throw new AbortError("User already exists");
+          } else {
+            throw new Error("User not created");
+          }
+        }
+      },
+      { retries: 100 }
+    );
   }
-  console.log("BATCH IMPORTING WORKS");
   return new Response("OK", { status: 200 });
 }
