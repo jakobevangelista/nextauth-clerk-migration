@@ -6,6 +6,7 @@ import { db } from "./server/neonDb/index";
 import { users } from "./server/neonDb/schema";
 import { getUserByEmail } from "./server/queries";
 import { clerkClient } from "@clerk/nextjs/server";
+import Google from "next-auth/providers/google";
 
 export default {
   providers: [
@@ -38,5 +39,6 @@ export default {
         return user;
       },
     }),
+    Google,
   ],
 } satisfies NextAuthConfig;
