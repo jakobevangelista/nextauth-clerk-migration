@@ -12,7 +12,14 @@ export default clerkMiddleware(async (clerkauth, req) => {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   await nextAuthMiddle(req); // works but needs AppRouteHandlerFnContext
-  console.log("CLERK MIDDLEWARE WORK");
+  // console.log("CLERK MIDDLEWARE WORK");
+  // console.log("req: ", req);
+  // const res = await fetch(req);
+  // const res = NextResponse.next();
+  // await res;
+  // const res = NextResponse.next();
+  // res.headers.set("custom", "deeznuts");
+  // console.log("should be after hit");
 
   return NextResponse.next();
 });

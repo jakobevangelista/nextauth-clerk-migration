@@ -53,8 +53,9 @@ export function createMigrationHandler({
   return async function udontknowthepainittooktomakethishappen() {
     const session = await oldCheckHasSession();
     const { userId }: { userId: string | null } = auth();
+    console.log("made it to backend");
 
-    if (userId) return new Response("User already exists", { status: 222 });
+    if (userId) return new Response("User already exists", { status: 221 });
     if (!session?.user?.email)
       return new Response("User not signed into next auth", { status: 222 });
 

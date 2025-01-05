@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { db } from "@/server/neonDb";
 import { eq } from "drizzle-orm";
 import { userAttributes } from "@/server/neonDb/schema";
+import LayoutTrickleWrapper from "./_auth-migration/layoutTrickleWrapper";
+import RenderCounter from "./renderCounter";
 
 export default async function Home() {
   const session = await auth();
@@ -22,8 +24,10 @@ export default async function Home() {
 
   return (
     <>
+      <LayoutTrickleWrapper />
       <div>Signed In with Next-Auth</div>
       <div>{JSON.stringify(session)}</div>
+
       {/* <div>
         Role Metadata: {gettingMetadata!.publicMetadata.role! as string}
       </div> */}
@@ -36,6 +40,7 @@ export default async function Home() {
       >
         <button type="submit">Sign Out</button>
       </form>
+      <RenderCounter />
     </>
   );
 }

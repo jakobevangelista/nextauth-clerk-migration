@@ -61,6 +61,24 @@ export default async function SignIn() {
         >
           <button type="submit">get all dem users into da queue</button>
         </form>
+        <form
+          action={async () => {
+            "use server";
+            const req = await fetch(
+              "http://localhost:3001/api/test-middleware",
+              {
+                method: "GET",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                cache: "no-store",
+              }
+            );
+            // console.log(req);
+          }}
+        >
+          <button type="submit">Test middleware</button>
+        </form>
       </>
     );
   }

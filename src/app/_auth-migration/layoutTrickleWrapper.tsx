@@ -3,19 +3,17 @@
 import { UserButton, useSession, useSignIn, useUser } from "@clerk/nextjs";
 import pRetry from "p-retry";
 import { useEffect, useRef, useState } from "react";
-export default function TrickleWrapper({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+
+export default function LayoutTrickleWrapper() {
+  const nextAuthSession = useSession();
   const { signIn, setActive } = useSignIn();
+
   const { user } = useUser();
   const { session } = useSession();
   const fetchRan = useRef<boolean>(false);
   const [signInId, setSignInId] = useState<string | null>(null);
 
   useEffect(() => {
-    // console.log("TOKEN", session?.lastActiveToken?.jwt);
     console.log("TOKEN");
 
     // gets the token from query and signs the user in
@@ -31,27 +29,27 @@ export default function TrickleWrapper({
 
     if (!fetchRan.current) {
       const createSignIn = async () => {
-        const res = await pRetry(
-          async () => {
-            const res = await fetch("/api/auth-migration", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-            });
-
-            if (!res.ok) {
-              throw new Error(res.statusText);
-            }
-            return res;
+        // const res = await pRetry(
+        //   async () => {
+        const res = await fetch("/api/auth-migration", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
-          {
-            retries: 100,
-            onFailedAttempt: (error) => {
-              console.log(`Attempt ${error.attemptNumber} failed.`);
-            },
-          }
-        );
+        });
+
+        if (!res.ok) {
+          throw new Error(res.statusText);
+        }
+        // return res;
+        // },
+        //   {
+        //     retries: 100,
+        //     onFailedAttempt: (error) => {
+        //       console.log(`Attempt ${error.attemptNumber} failed.`);
+        //     },
+        //   }
+        // );
 
         let data = null;
 
@@ -64,6 +62,7 @@ export default function TrickleWrapper({
 
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         if (data.token === "none") {
+          console.log("NO TOKEN");
           return;
         }
 
@@ -97,7 +96,6 @@ export default function TrickleWrapper({
       <div>
         {user ? <div>USER CREATED: {user.id}</div> : null}
         <UserButton />
-        {children}
       </div>
     </>
   );

@@ -2,6 +2,7 @@ import { ClerkProvider, SignedIn, UserButton } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import LayoutTrickleWrapper from "./_auth-migration/layoutTrickleWrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,7 +19,10 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
-        <body className={inter.className}>{children}</body>
+        <body className={inter.className}>
+          {/* <LayoutTrickleWrapper /> */}
+          {children}
+        </body>
       </html>
     </ClerkProvider>
   );
